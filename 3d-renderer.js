@@ -13,23 +13,38 @@ class NQueens3DRenderer {
         this.board = null;
         this.queens = [];
         this.squares = [];
+        this.animationId = null;
 
-        this.initScene();
-        this.setupLighting();
-        this.createBoard();
-        this.animate();
+        try {
+            this.initScene();
+            this.setupLighting();
+            this.createBoard();
+            this.startAnimation();
+        } catch (e) {
+            console.error('3D Renderer Error:', e);
+        }
     }
 
     initScene() {
+        // Ensure canvas is properly visible
+        this.canvas.style.display = 'block';
+        this.canvas.style.width = '100%';
+        this.canvas.style.height = '600px';
+        
+        // Set canvas resolution
+        const width = this.canvas.parentElement ? this.canvas.parentElement.clientWidth : 800;
+        const height = 600;
+        
+        this.canvas.width = Math.max(width, 500);
+        this.canvas.height = height;
+
         // Scene
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x1a1a2e);
         this.scene.fog = new THREE.Fog(0x1a1a2e, 100, 500);
 
         // Camera
-        const width = this.canvas.clientWidth;
-        const height = this.canvas.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(75, this.canvas.width / this.canvas.height, 0.1, 1000);
         this.camera.position.set(this.n / 2, this.n * 0.8, this.n * 1.2);
         this.camera.lookAt(this.n / 2, 0, this.n / 2);
 
@@ -37,9 +52,13 @@ class NQueens3DRenderer {
         this.renderer = new THREE.WebGLRenderer({ 
             canvas: this.canvas, 
             antialias: true, 
-            alpha: true 
+            alpha: true,
+            precision: 'highp',
+            powerPreference: 'high-performance'
         });
-        this.renderer.setSize(width, height);
+        
+        this.renderer.setSize(this.canvas.width, this.canvas.height);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
 
@@ -49,11 +68,11 @@ class NQueens3DRenderer {
 
     setupLighting() {
         // Ambient light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         this.scene.add(ambientLight);
 
         // Directional light
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(this.n / 2, this.n, this.n);
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 2048;
@@ -65,15 +84,12 @@ class NQueens3DRenderer {
         this.scene.add(directionalLight);
 
         // Point light for highlights
-        const pointLight = new THREE.PointLight(0x667eea, 0.5);
+        const pointLight = new THREE.PointLight(0x667eea, 0.4);
         pointLight.position.set(this.n / 2, this.n * 1.5, -this.n);
         this.scene.add(pointLight);
     }
 
     createBoard() {
-        const groupSize = 20;
-        const squares = [];
-
         for (let row = 0; row < this.n; row++) {
             for (let col = 0; col < this.n; col++) {
                 const isWhite = (row + col) % 2 === 0;
@@ -89,14 +105,12 @@ class NQueens3DRenderer {
                 square.userData = { row, col, isWhite };
 
                 this.scene.add(square);
-                squares.push(square);
+                this.squares.push(square);
             }
         }
 
         // Add board border
         this.addBoardBorder();
-
-        this.squares = squares;
     }
 
     addBoardBorder() {
@@ -193,49 +207,85 @@ class NQueens3DRenderer {
     }
 
     render(board, threatMap) {
-        // Clear existing queens
-        this.queens.forEach(queen => this.scene.remove(queen));
-        this.queens = [];
+        try {
+            // Clear existing queens
+            this.queens.forEach(queen => this.scene.remove(queen));
+            this.queens = [];
 
-        // Update square colors based on threats
-        this.updateSquareColors(threatMap);
+            // Update square colors based on threats
+            this.updateSquareColors(threatMap);
 
-        // Add queens
-        for (let row = 0; row < this.n; row++) {
-            if (board[row] !== -1) {
-                const col = board[row];
-                const key = `${row},${col}`;
-                const threatLevel = threatMap.has(key) ? 1 : 0;
-                const queen = this.createQueen(row, col, threatLevel);
-                this.queens.push(queen);
+            // Add queens
+            for (let row = 0; row < this.n; row++) {
+                if (board[row] !== -1) {
+                    const col = board[row];
+                    const key = `${row},${col}`;
+                    const threatLevel = threatMap.has(key) ? 1 : 0;
+                    const queen = this.createQueen(row, col, threatLevel);
+                    this.queens.push(queen);
+                }
             }
+        } catch (e) {
+            console.error('Render error:', e);
         }
     }
 
+    startAnimation() {
+        this.animate();
+    }
+
     animate() {
-        requestAnimationFrame(() => this.animate());
+        this.animationId = requestAnimationFrame(() => this.animate());
 
-        // Rotate camera slightly
-        const time = Date.now() * 0.0001;
-        const radius = this.n * 1.5;
-        this.camera.position.x = this.n / 2 + Math.cos(time) * radius * 0.3;
-        this.camera.position.z = this.n / 2 + Math.sin(time) * radius * 0.3;
-        this.camera.lookAt(this.n / 2, 0, this.n / 2);
+        try {
+            // Rotate camera slightly
+            const time = Date.now() * 0.0001;
+            const radius = this.n * 1.5;
+            this.camera.position.x = this.n / 2 + Math.cos(time) * radius * 0.3;
+            this.camera.position.z = this.n / 2 + Math.sin(time) * radius * 0.3;
+            this.camera.lookAt(this.n / 2, 0, this.n / 2);
 
-        // Rotate queens
-        this.queens.forEach(queen => {
-            queen.rotation.y += 0.01;
-        });
+            // Rotate queens
+            this.queens.forEach(queen => {
+                queen.rotation.y += 0.01;
+            });
 
-        this.renderer.render(this.scene, this.camera);
+            if (this.renderer && this.scene && this.camera) {
+                this.renderer.render(this.scene, this.camera);
+            }
+        } catch (e) {
+            console.error('Animation error:', e);
+        }
     }
 
     onWindowResize() {
-        const width = this.canvas.clientWidth;
-        const height = this.canvas.clientHeight;
+        try {
+            const width = this.canvas.parentElement ? this.canvas.parentElement.clientWidth : 800;
+            const height = 600;
 
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
+            this.canvas.width = Math.max(width, 500);
+            this.canvas.height = height;
+
+            this.camera.aspect = this.canvas.width / this.canvas.height;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(this.canvas.width, this.canvas.height);
+        } catch (e) {
+            console.error('Resize error:', e);
+        }
+    }
+
+    dispose() {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+        this.queens.forEach(queen => {
+            if (queen.geometry) queen.geometry.dispose();
+            if (queen.material) queen.material.dispose();
+        });
+        this.squares.forEach(square => {
+            if (square.geometry) square.geometry.dispose();
+            if (square.material) square.material.dispose();
+        });
+        if (this.renderer) this.renderer.dispose();
     }
 }

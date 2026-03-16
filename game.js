@@ -76,10 +76,18 @@ class NQueensGame {
 
     changeVisualMode(mode) {
         this.visualMode = mode;
-        if (mode === '3d' && !this.renderer3D) {
-            this.renderer3D = new NQueens3DRenderer(this.n, this.canvas3D);
+        if (mode === '3d') {
+            // Force recreation of 3D renderer
+            this.renderer3D = null;
+            setTimeout(() => {
+                this.renderer3D = new NQueens3DRenderer(this.n, this.elements.canvas3D);
+                if (this.renderer3D && this.renderer3D.renderer) {
+                    this.render();
+                }
+            }, 100);
+        } else {
+            this.render();
         }
-        this.render();
     }
 
     newGame() {
@@ -95,40 +103,53 @@ class NQueensGame {
 
     resetBoard() {
         this.board = Array(this.n).fill(-1);
-        this.elements.status.textContent = 'Board Reset';
+        this.elements.status.textContent = this.gameMode === 'human' ? 'Place queens - no conflicts to win!' : 'Board Reset';
         this.gameActive = true;
         this.updateDisplay();
         this.render();
     }
 
     /**
-     * Handle human player placing a queen
+     * Handle human player placing a queen - Allow ANY placement
      */
     placeQueen(row, col) {
-        if (!this.gameActive || this.board[row] !== -1) return;
+        if (!this.gameActive) return;
 
-        // Check if move is valid
-        const testBoard = [...this.board];
-        testBoard[row] = col;
-        if (!this.ai.isSafe(testBoard, row, col)) {
-            this.elements.status.textContent = 'Invalid move! Square is threatened';
-            setTimeout(() => this.updateDisplay(), 1000);
-            return;
-        }
-
+        // Allow placement even if it creates conflicts (flexible gameplay)
         this.board[row] = col;
         this.updateDisplay();
         this.render();
 
         const filledRows = this.board.filter(c => c !== -1).length;
+        
+        // Check if board is full
         if (filledRows === this.n) {
-            this.elements.status.textContent = '✓ You won! All queens placed safely!';
-            this.gameActive = false;
+            this.checkGameEnd();
         } else {
-            if (this.gameMode === 'mixed') {
-                // Continue human play or switch to AI
-                this.elements.status.textContent = 'Continue placing queens...';
+            // Show current status
+            const conflicts = this.ai.countConflicts(this.board);
+            if (conflicts > 0) {
+                this.elements.status.textContent = `Conflicts detected: ${conflicts}. Continue placing...`;
+            } else {
+                this.elements.status.textContent = 'No conflicts yet! Continue placing...';
             }
+        }
+    }
+
+    /**
+     * Check game end condition and determine win/lose
+     */
+    checkGameEnd() {
+        const conflicts = this.ai.countConflicts(this.board);
+        const filledRows = this.board.filter(c => c !== -1).length;
+        
+        if (filledRows === this.n) {
+            if (conflicts === 0) {
+                this.elements.status.textContent = '✅ YOU WIN! All queens placed with no conflicts!';
+            } else {
+                this.elements.status.textContent = `❌ YOU LOSE! ${conflicts} conflict(s) detected. Try again!`;
+            }
+            this.gameActive = false;
         }
     }
 
@@ -256,10 +277,20 @@ class NQueensGame {
         this.elements.canvas3D.classList.add('active');
 
         if (!this.renderer3D) {
-            this.renderer3D = new NQueens3DRenderer(this.n, this.elements.canvas3D);
+            try {
+                this.renderer3D = new NQueens3DRenderer(this.n, this.elements.canvas3D);
+            } catch (e) {
+                console.error('3D Renderer initialization error:', e);
+                this.elements.status.textContent = '3D mode unavailable. Switching to 2D.';
+                this.visualMode = '2d';
+                this.render2D();
+                return;
+            }
         }
 
-        this.renderer3D.render(this.board, this.ai.getThreatenedSquares(this.board));
+        if (this.renderer3D && this.renderer3D.render) {
+            this.renderer3D.render(this.board, this.ai.getThreatenedSquares(this.board));
+        }
     }
 }
 
